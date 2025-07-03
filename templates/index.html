@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BLE Beacons Monitor</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        .beacons-container {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        
+        .beacon-card {
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 10px;
+            transition: all 0.3s ease;
+        }
+        
+        .beacon-card:hover {
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            transform: translateY(-2px);
+        }
+        
+        .beacon-mac {
+            font-weight: bold;
+            font-size: 1.1em;
+            color: #333;
+            margin-bottom: 8px;
+        }
+        
+        .beacon-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 10px;
+        }
+        
+        .beacon-detail {
+            text-align: center;
+            padding: 8px;
+            background: #f8f9fa;
+            border-radius: 5px;
+        }
+        
+        .rssi-strong { color: #28a745; }
+        .rssi-medium { color: #ffc107; }
+        .rssi-weak { color: #dc3545; }
+        
+        .latest-readings {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .reading-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        .reading-item:last-child {
+            border-bottom: none;
+        }
+        
+        .status {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #28a745;
+            color: white;
+            padding: 10px 15px;
+            border-radius: 20px;
+            font-size: 0.9em;
+        }
+        
+        .loading {
+            text-align: center;
+            color: #666;
+            font-style: italic;
+        }
+        
+        h2 {
+            color: #333;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="status" id="status">🔄 Đang tải...</div>
+    
+    <div class="container">
+        <div class="header">
+            <h1>📡 BLE Beacons Monitor</h1>
+            <p>Theo dõi tín hiệu RSSI từ các Bluetooth Beacons</p>
+        </div>
+        
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-value" id="totalBeacons">-</div>
+                <div>Tổng Beacons</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="totalReadings">-</div>
+                <div>Tổng Readings</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="uptime">-</div>
+                <div>Uptime (giây)</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="lastUpdate">-</div>
+                <div>Cập nhật cuối</div>
+            </div>
+        </div>
+        
+        <div class="beacons-container">
+            <h2>🎯 Danh sách Beacons</h2>
+            <div id="beaconsList" class="loading">
+                Đang tải dữ liệu beacons...
+            </div>
+        </div>
+        
+        <div class="latest-readings">
+            <h2>📊 Readings Mới Nhất</h2>
+            <div id="latestReadings" class="loading">
+                Đang tải readings...
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function getRSSIClass(rssi) {
+            if (rssi >= -50) return 'rssi-strong';
+            if (rssi >= -70) return 'rssi-medium';
+            return 'rssi-weak';
+        }
+        
+        function formatRSSI(rssi) {
+            const className = getRSSIClass(rssi);
+            return `<span class="${className}">${rssi} dBm</span>`;
+        }
+        
+        function updateBeacons() {
+            fetch('/api/beacons')
+                .then(response => response.json())
+                .then(data => {
+                    // Cập nhật stats
+                    document.getElementById('totalBeacons').textContent = data.total_beacons;
+                    document.getElementById('totalReadings').textContent = data.total_readings;
+                    document.getElementById('uptime').textContent = data.uptime_seconds;
+                    document.getElementById('lastUpdate').textContent = data.timestamp;
+                    
+                    // Cập nhật danh sách beacons
+                    const beaconsList = document.getElementById('beaconsList');
+                    if (data.beacons.length === 0) {
+                        beaconsList.innerHTML = '<div class="loading">Chưa có beacon nào được phát hiện...</div>';
+                    } else {
+                        beaconsList.innerHTML = data.beacons.map(beacon => `
+                            <div class="beacon-card">
+                                <div class="beacon-mac">📱 ${beacon.mac_address}</div>
+                                <div class="beacon-details">
+                                    <div class="beacon-detail">
+                                        <strong>RSSI</strong><br>
+                                        ${formatRSSI(beacon.rssi)}
+                                    </div>
+                                    <div class="beacon-detail">
+                                        <strong>Readings</strong><br>
+                                        ${beacon.count}
+                                    </div>
+                                    <div class="beacon-detail">
+                                        <strong>Lần cuối</strong><br>
+                                        ${beacon.last_seen}
+                                    </div>
+                                </div>
+                            </div>
+                        `).join('');
+                    }
+                    
+                    // Cập nhật readings mới nhất
+                    const latestReadings = document.getElementById('latestReadings');
+                    if (data.latest_readings.length === 0) {
+                        latestReadings.innerHTML = '<div class="loading">Chưa có readings nào...</div>';
+                    } else {
+                        latestReadings.innerHTML = data.latest_readings.map(reading => `
+                            <div class="reading-item">
+                                <span>${reading.timestamp.substring(11, 19)} - ${reading.beacon_mac}</span>
+                                <span>${formatRSSI(reading.rssi)}</span>
+                            </div>
+                        `).join('');
+                    }
+                    
+                    // Cập nhật status
+                    document.getElementById('status').innerHTML = '✅ Đang hoạt động';
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    document.getElementById('status').innerHTML = '❌ Lỗi kết nối';
+                });
+        }
+        
+        // Cập nhật ngay khi tải trang
+        updateBeacons();
+        
+        // Tự động cập nhật mỗi 2 giây
+        setInterval(updateBeacons, 2000);
+    </script>
+</body>
+</html>
