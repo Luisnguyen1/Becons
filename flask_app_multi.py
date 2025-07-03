@@ -9,11 +9,18 @@ import time
 
 app = Flask(__name__)
 
-# Import multi-beacon collector
-try:
-    from run_monitor import multi_collector
-except ImportError:
-    multi_collector = None
+# Global collector reference
+multi_collector = None
+
+def set_collector(collector):
+    """Set collector instance from external source"""
+    global multi_collector
+    multi_collector = collector
+
+def get_collector():
+    """Get collector instance"""
+    global multi_collector
+    return multi_collector
 
 @app.route('/')
 def index():
@@ -23,7 +30,8 @@ def index():
 @app.route('/api/multi-beacons')
 def api_multi_beacons():
     """API endpoint trả về dữ liệu từ tất cả beacons dạng JSON"""
-    if not multi_collector:
+    collector = get_collector()
+    if not collector:
         return jsonify({
             'error': 'Multi-beacon collector not available',
             'scanners': [],
@@ -35,7 +43,7 @@ def api_multi_beacons():
         })
     
     try:
-        stats = multi_collector.get_stats()
+        stats = collector.get_stats()
         
         # Format dữ liệu cho web interface
         scanners_data = []
@@ -88,14 +96,15 @@ def api_multi_beacons():
 @app.route('/api/scanner-status')
 def api_scanner_status():
     """API endpoint trả về trạng thái kết nối của các scanners"""
-    if not multi_collector:
+    collector = get_collector()
+    if not collector:
         return jsonify({
             'error': 'Multi-beacon collector not available',
             'connection_status': {}
         })
     
     try:
-        stats = multi_collector.get_stats()
+        stats = collector.get_stats()
         
         # Format connection status
         formatted_status = {}
@@ -120,16 +129,17 @@ def api_scanner_status():
 @app.route('/api/latest-readings')
 def api_latest_readings():
     """API endpoint trả về readings mới nhất từ tất cả scanners"""
-    if not multi_collector:
+    collector = get_collector()
+    if not collector:
         return jsonify({
             'error': 'Multi-beacon collector not available',
             'latest_readings': []
         })
     
     try:
-        with multi_collector.stats_lock:
+        with collector.stats_lock:
             # Lấy 50 readings mới nhất
-            readings = [r.to_dict() for r in multi_collector.all_readings[-50:]]
+            readings = [r.to_dict() for r in collector.all_readings[-50:]]
         
         # Format readings cho web
         formatted_readings = []
@@ -156,14 +166,15 @@ def api_latest_readings():
 @app.route('/api/export')
 def api_export():
     """API endpoint để export dữ liệu"""
-    if not multi_collector:
+    collector = get_collector()
+    if not collector:
         return jsonify({
             'success': False,
             'error': 'Multi-beacon collector not available'
         })
     
     try:
-        filename = multi_collector.export_data()
+        filename = collector.export_data()
         return jsonify({
             'success': True,
             'filename': filename,
@@ -178,7 +189,8 @@ def api_export():
 @app.route('/api/collector-control/<action>')
 def api_collector_control(action):
     """API endpoint để điều khiển collector (start/stop)"""
-    if not multi_collector:
+    collector = get_collector()
+    if not collector:
         return jsonify({
             'success': False,
             'error': 'Multi-beacon collector not available'
@@ -186,7 +198,7 @@ def api_collector_control(action):
     
     try:
         if action == 'stop':
-            multi_collector.stop()
+            collector.stop()
             return jsonify({
                 'success': True,
                 'message': 'Collector stopped successfully'
@@ -194,8 +206,8 @@ def api_collector_control(action):
         elif action == 'status':
             return jsonify({
                 'success': True,
-                'running': multi_collector.running,
-                'start_time': multi_collector.start_time.isoformat() if multi_collector.start_time else None
+                'running': collector.running,
+                'start_time': collector.start_time.isoformat() if collector.start_time else None
             })
         else:
             return jsonify({

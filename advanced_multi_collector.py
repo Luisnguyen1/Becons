@@ -45,7 +45,7 @@ class BeaconStats:
 class MultiBeaconCollector:
     """Class chính để quản lý thu thập dữ liệu từ nhiều beacons"""
     
-    def __init__(self, config_file='beancons.json'):
+    def __init__(self, config_file='beancons.json', setup_signals=True):
         self.config_file = config_file
         self.beacon_data = {}  # {scanner_mac: {detected_mac: BeaconStats}}
         self.all_readings = []  # List of BeaconReading
@@ -62,9 +62,14 @@ class MultiBeaconCollector:
         self.CONNECTION_TIMEOUT = 15
         self.NOTIFICATION_TIMEOUT = 60
         
-        # Setup signal handlers
-        signal.signal(signal.SIGINT, self._signal_handler)
-        signal.signal(signal.SIGTERM, self._signal_handler)
+        # Setup signal handlers chỉ khi chạy trong main thread
+        if setup_signals:
+            try:
+                signal.signal(signal.SIGINT, self._signal_handler)
+                signal.signal(signal.SIGTERM, self._signal_handler)
+            except ValueError:
+                # Signal handlers chỉ có thể setup trong main thread
+                print("Warning: Cannot setup signal handlers (not in main thread)")
     
     def _signal_handler(self, signum, frame):
         """Handle shutdown signals"""

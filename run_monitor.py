@@ -14,7 +14,8 @@ def run_multi_beacon_collector():
     """Chạy Multi-Beacon BLE collector trong thread riêng"""
     global multi_collector
     try:
-        multi_collector = MultiBeaconCollector()
+        # Tạo collector với setup_signals=False vì đang chạy trong thread
+        multi_collector = MultiBeaconCollector(setup_signals=False)
         print(f"[{datetime.now()}] Starting Multi-Beacon Collector...")
         if multi_collector.start():
             print(f"[{datetime.now()}] Multi-Beacon Collector started successfully")
@@ -25,10 +26,18 @@ def run_multi_beacon_collector():
             print(f"[{datetime.now()}] Failed to start Multi-Beacon Collector")
     except Exception as e:
         print(f"[{datetime.now()}] Multi-Beacon Collector error: {e}")
+        import traceback
+        traceback.print_exc()
 
 def run_flask_app():
     """Chạy Flask app trong thread riêng"""
-    from flask_app_multi import app
+    from flask_app_multi import app, set_collector
+    
+    # Set collector reference cho Flask app
+    global multi_collector
+    if multi_collector:
+        set_collector(multi_collector)
+    
     try:
         app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)
     except Exception as e:
@@ -45,6 +54,12 @@ if __name__ == "__main__":
     
     # Đợi 5 giây để Multi-Beacon collector khởi động
     time.sleep(5)
+    
+    # Set collector cho Flask app sau khi collector đã khởi tạo
+    if multi_collector:
+        from flask_app_multi import set_collector
+        set_collector(multi_collector)
+        print("✅ Collector reference set for Flask app")
     
     # Bắt đầu Flask web server
     print("🌐 Starting Flask Web Server...")
