@@ -27,6 +27,11 @@ def index():
     """Trang chính hiển thị dữ liệu multi-beacons"""
     return render_template('multi_beacon_index.html')
 
+@app.route('/map')
+def location_map():
+    """Trang bản đồ vị trí indoor positioning"""
+    return render_template('location_map.html')
+
 @app.route('/api/multi-beacons')
 def api_multi_beacons():
     """API endpoint trả về dữ liệu từ tất cả beacons dạng JSON"""
@@ -218,6 +223,130 @@ def api_collector_control(action):
         return jsonify({
             'success': False,
             'error': f'Control action failed: {str(e)}'
+        })
+
+@app.route('/api/positioning-data')
+def api_positioning_data():
+    """API endpoint trả về dữ liệu để tính toán vị trí từ các beacons"""
+    collector = get_collector()
+    if not collector:
+        return jsonify({
+            'error': 'Multi-beacon collector not available',
+            'beacon_data': {}
+        })
+    
+    try:
+        stats = collector.get_stats()
+        
+        # Lấy dữ liệu beacon mới nhất từ tất cả scanners
+        beacon_data = {}
+        
+        # Định nghĩa danh sách MAC addresses của 3 beacons chính
+        target_beacons = [
+            '80:4B:50:56:A6:91',  # Beacon 1
+            '60:A4:23:C9:85:C1',  # Beacon 2  
+            'C0:2C:ED:90:AD:A3'   # Beacon 3
+        ]
+        
+        # Tổng hợp dữ liệu từ tất cả scanners
+        for scanner_mac, detected_beacons in stats['scanner_data'].items():
+            for beacon_mac, beacon_info in detected_beacons.items():
+                if beacon_mac in target_beacons:
+                    # Nếu beacon này chưa có hoặc có RSSI yếu hơn, cập nhật
+                    if (beacon_mac not in beacon_data or 
+                        beacon_info['rssi'] > beacon_data[beacon_mac]['rssi']):
+                        beacon_data[beacon_mac] = {
+                            'rssi': beacon_info['rssi'],
+                            'avg_rssi': beacon_info['avg_rssi'],
+                            'min_rssi': beacon_info['min_rssi'],
+                            'max_rssi': beacon_info['max_rssi'],
+                            'count': beacon_info['count'],
+                            'last_seen': beacon_info['last_seen'],
+                            'scanner_mac': scanner_mac
+                        }
+        
+        return jsonify({
+            'beacon_data': beacon_data,
+            'total_beacons_detected': len(beacon_data),
+            'target_beacons': target_beacons,
+            'timestamp': datetime.now().strftime("%H:%M:%S")
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'error': f'Error getting positioning data: {str(e)}',
+            'beacon_data': {}
+        })
+
+@app.route('/api/beacon-distances')
+def api_beacon_distances():
+    """API endpoint trả về khoảng cách ước tính đến các beacons"""
+    collector = get_collector()
+    if not collector:
+        return jsonify({
+            'error': 'Multi-beacon collector not available',
+            'distances': {}
+        })
+    
+    try:
+        stats = collector.get_stats()
+        
+        # Hàm chuyển đổi RSSI thành khoảng cách (công thức đơn giản)
+        def rssi_to_distance(rssi, tx_power=-59):
+            if rssi == 0:
+                return -1.0
+            ratio = rssi * 1.0 / tx_power
+            if ratio < 1.0:
+                return pow(ratio, 10)
+            else:
+                accuracy = (0.89976) * pow(ratio, 7.7095) + 0.111
+                return accuracy
+        
+        distances = {}
+        target_beacons = [
+            '80:4B:50:56:A6:91',  # Beacon 1
+            '60:A4:23:C9:85:C1',  # Beacon 2  
+            'C0:2C:ED:90:AD:A3'   # Beacon 3
+        ]
+        
+        # Tính khoảng cách cho từng beacon
+        for scanner_mac, detected_beacons in stats['scanner_data'].items():
+            for beacon_mac, beacon_info in detected_beacons.items():
+                if beacon_mac in target_beacons:
+                    distance = rssi_to_distance(beacon_info['rssi'])
+                    
+                    if beacon_mac not in distances:
+                        distances[beacon_mac] = []
+                    
+                    distances[beacon_mac].append({
+                        'distance': round(distance, 2),
+                        'rssi': beacon_info['rssi'],
+                        'scanner': scanner_mac,
+                        'accuracy': 'high' if beacon_info['rssi'] > -60 else 'medium' if beacon_info['rssi'] > -80 else 'low'
+                    })
+        
+        # Tính khoảng cách trung bình cho mỗi beacon
+        avg_distances = {}
+        for beacon_mac, distance_list in distances.items():
+            if distance_list:
+                avg_distance = sum(d['distance'] for d in distance_list) / len(distance_list)
+                best_rssi = max(d['rssi'] for d in distance_list)
+                avg_distances[beacon_mac] = {
+                    'average_distance': round(avg_distance, 2),
+                    'best_rssi': best_rssi,
+                    'measurement_count': len(distance_list),
+                    'all_measurements': distance_list
+                }
+        
+        return jsonify({
+            'distances': avg_distances,
+            'timestamp': datetime.now().strftime("%H:%M:%S")
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'error': f'Error calculating distances: {str(e)}',
+            'distances': {}
         })
 
 if __name__ == '__main__':

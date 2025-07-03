@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BLE Indoor Positioning Map</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 25px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            backdrop-filter: blur(10px);
+        }
+        
+        .header h1 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+            background: linear-gradient(135deg, #2c3e50, #3498db);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .header p {
+            color: #718096;
+            font-size: 1.1em;
+        }
+        
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 350px;
+            gap: 20px;
+            height: calc(100vh - 200px);
+        }
+        
+        .map-container {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .map-title {
+            color: #2c3e50;
+            margin-bottom: 15px;
+            font-size: 1.4em;
+            border-bottom: 3px solid #e2e8f0;
+            padding-bottom: 10px;
+            text-align: center;
+        }
+        
+        .map-canvas {
+            width: 100%;
+            height: calc(100% - 60px);
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            background: #f8f9fa;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .beacon {
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            border: 3px solid #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: white;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            z-index: 10;
+        }
+        
+        .beacon:hover {
+            transform: scale(1.2);
+            z-index: 15;
+        }
+        
+        .beacon-1 { background: #e74c3c; }
+        .beacon-2 { background: #27ae60; }
+        .beacon-3 { background: #3498db; }
+        
+        .beacon-signal-circle {
+            position: absolute;
+            border: 2px solid;
+            border-radius: 50%;
+            pointer-events: none;
+            opacity: 0.3;
+        }
+        
+        .signal-circle-1 { border-color: #e74c3c; }
+        .signal-circle-2 { border-color: #27ae60; }
+        .signal-circle-3 { border-color: #3498db; }
+        
+        .user-position {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            background: #f39c12;
+            border: 3px solid #fff;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 20;
+            animation: pulse 2s infinite;
+            box-shadow: 0 0 20px rgba(243, 156, 18, 0.6);
+        }
+        
+        @keyframes pulse {
+            0% { transform: translate(-50%, -50%) scale(1); }
+            50% { transform: translate(-50%, -50%) scale(1.2); }
+            100% { transform: translate(-50%, -50%) scale(1); }
+        }
+        
+        .position-trail {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            background: #f39c12;
+            border-radius: 50%;
+            opacity: 0.6;
+            z-index: 5;
+        }
+        
+        .sidebar {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+            overflow-y: auto;
+        }
+        
+        .sidebar h3 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-size: 1.2em;
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 10px;
+        }
+        
+        .beacon-info {
+            background: #f8f9fa;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 10px;
+            border-left: 4px solid;
+            transition: all 0.3s ease;
+        }
+        
+        .beacon-info:hover {
+            transform: translateX(5px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+        
+        .beacon-info-1 { border-color: #e74c3c; }
+        .beacon-info-2 { border-color: #27ae60; }
+        .beacon-info-3 { border-color: #3498db; }
+        
+        .beacon-mac {
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 8px;
+            font-size: 0.9em;
+        }
+        
+        .beacon-data {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            font-size: 0.85em;
+        }
+        
+        .data-item {
+            display: flex;
+            justify-content: space-between;
+            background: white;
+            padding: 5px 8px;
+            border-radius: 5px;
+        }
+        
+        .data-label {
+            color: #718096;
+        }
+        
+        .data-value {
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        
+        .rssi-value {
+            font-weight: bold;
+            padding: 2px 6px;
+            border-radius: 12px;
+            color: white;
+            font-size: 0.8em;
+        }
+        
+        .rssi-excellent { background: #27ae60; }
+        .rssi-good { background: #2ecc71; }
+        .rssi-medium { background: #f39c12; }
+        .rssi-poor { background: #e67e22; }
+        .rssi-very-poor { background: #e74c3c; }
+        
+        .position-info {
+            background: linear-gradient(135deg, #f39c12, #e67e22);
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .coordinates {
+            font-family: 'Courier New', monospace;
+            font-size: 1.1em;
+            font-weight: bold;
+            margin-top: 5px;
+        }
+        
+        .accuracy-info {
+            background: #ecf0f1;
+            padding: 10px;
+            border-radius: 8px;
+            margin-top: 10px;
+            font-size: 0.85em;
+            color: #7f8c8d;
+        }
+        
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .btn {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            text-align: center;
+            font-size: 0.9em;
+        }
+        
+        .btn-clear {
+            background: linear-gradient(135deg, #95a5a6, #7f8c8d);
+            color: white;
+        }
+        
+        .btn-recalibrate {
+            background: linear-gradient(135deg, #9b59b6, #8e44ad);
+            color: white;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+        
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px;
+            background: #ecf0f1;
+            border-radius: 8px;
+            font-size: 0.9em;
+            margin-bottom: 15px;
+        }
+        
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #27ae60;
+            animation: blink 2s infinite;
+        }
+        
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0.3; }
+        }
+        
+        .map-legend {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 0.8em;
+            border: 1px solid #e2e8f0;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 5px;
+        }
+        
+        .legend-icon {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+        
+        .error-message {
+            background: #e74c3c;
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 10px 0;
+            text-align: center;
+        }
+        
+        .loading {
+            text-align: center;
+            color: #7f8c8d;
+            padding: 20px;
+            font-style: italic;
+        }
+        
+        @media (max-width: 1200px) {
+            .main-content {
+                grid-template-columns: 1fr;
+                height: auto;
+            }
+            
+            .map-container {
+                height: 500px;
+                margin-bottom: 20px;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+            
+            .header h1 {
+                font-size: 1.8em;
+            }
+            
+            .beacon-data {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🗺️ BLE Indoor Positioning Map</h1>
+            <p>Xác định vị trí trong nhà sử dụng tín hiệu từ 3 BLE Beacons</p>
+            <div style="margin-top: 15px;">
+                <a href="/" style="padding: 12px 24px; background: linear-gradient(135deg, #667eea, #764ba2); color: white; text-decoration: none; border-radius: 25px; font-weight: bold; transition: all 0.3s ease;">
+                    ← Back to Monitor
+                </a>
+            </div>
+        </div>
+        
+        <div class="main-content">
+            <div class="map-container">
+                <div class="map-title">🎯 Indoor Position Map</div>
+                <div class="map-canvas" id="mapCanvas">
+                    <!-- Beacons sẽ được đặt ở đây -->
+                    <!-- User position sẽ được hiển thị ở đây -->
+                </div>
+                <div class="map-legend">
+                    <div class="legend-item">
+                        <div class="legend-icon" style="background: #e74c3c;"></div>
+                        <span>Beacon 1</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-icon" style="background: #27ae60;"></div>
+                        <span>Beacon 2</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-icon" style="background: #3498db;"></div>
+                        <span>Beacon 3</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-icon" style="background: #f39c12;"></div>
+                        <span>User Position</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="sidebar">
+                <div class="status-indicator">
+                    <div class="status-dot"></div>
+                    <span>Real-time positioning active</span>
+                </div>
+                
+                <div class="position-info" id="positionInfo">
+                    <div>📍 Current Position</div>
+                    <div class="coordinates" id="coordinates">Calculating...</div>
+                    <div class="accuracy-info" id="accuracyInfo">
+                        Accuracy depends on beacon signal strength
+                    </div>
+                </div>
+                
+                <div class="controls">
+                    <button class="btn btn-clear" onclick="clearTrail()">🗑️ Clear Trail</button>
+                    <button class="btn btn-recalibrate" onclick="recalibrate()">🔄 Recalibrate</button>
+                </div>
+                
+                <h3>📡 Beacon Status</h3>
+                <div id="beaconData">
+                    <div class="loading">Loading beacon data...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Map và positioning configuration
+        const MAP_CONFIG = {
+            width: 800,   // Map width in pixels
+            height: 600,  // Map height in pixels
+            realWidth: 20,   // Real room width in meters
+            realHeight: 15   // Real room height in meters
+        };
+        
+        // Beacon positions (in real coordinates - meters)
+        const BEACON_POSITIONS = {
+            '80:4B:50:56:A6:91': { x: 2, y: 2, name: 'Beacon 1', class: 'beacon-1' },
+            '60:A4:23:C9:85:C1': { x: 18, y: 2, name: 'Beacon 2', class: 'beacon-2' },
+            'C0:2C:ED:90:AD:A3': { x: 10, y: 13, name: 'Beacon 3', class: 'beacon-3' }
+        };
+        
+        let userPosition = { x: 10, y: 7.5 }; // Initial position (center)
+        let positionTrail = [];
+        let updateInterval;
+        let mapCanvas;
+        
+        // Convert real coordinates to pixel coordinates
+        function realToPixel(realX, realY) {
+            const canvas = document.getElementById('mapCanvas');
+            const rect = canvas.getBoundingClientRect();
+            
+            const pixelX = (realX / MAP_CONFIG.realWidth) * (rect.width - 40) + 20;
+            const pixelY = (realY / MAP_CONFIG.realHeight) * (rect.height - 40) + 20;
+            
+            return { x: pixelX, y: pixelY };
+        }
+        
+        // Convert RSSI to distance (simplified formula)
+        function rssiToDistance(rssi, txPower = -59) {
+            if (rssi === 0) return -1.0;
+            
+            const ratio = rssi * 1.0 / txPower;
+            if (ratio < 1.0) {
+                return Math.pow(ratio, 10);
+            } else {
+                const accuracy = (0.89976) * Math.pow(ratio, 7.7095) + 0.111;
+                return accuracy;
+            }
+        }
+        
+        // Trilateration algorithm
+        function trilaterate(beacon1, beacon2, beacon3) {
+            const { x: x1, y: y1, distance: r1 } = beacon1;
+            const { x: x2, y: y2, distance: r2 } = beacon2;
+            const { x: x3, y: y3, distance: r3 } = beacon3;
+            
+            // Using basic trilateration formulas
+            const A = 2 * (x2 - x1);
+            const B = 2 * (y2 - y1);
+            const C = Math.pow(r1, 2) - Math.pow(r2, 2) - Math.pow(x1, 2) + Math.pow(x2, 2) - Math.pow(y1, 2) + Math.pow(y2, 2);
+            const D = 2 * (x3 - x2);
+            const E = 2 * (y3 - y2);
+            const F = Math.pow(r2, 2) - Math.pow(r3, 2) - Math.pow(x2, 2) + Math.pow(x3, 2) - Math.pow(y2, 2) + Math.pow(y3, 2);
+            
+            const denominator = A * E - B * D;
+            if (Math.abs(denominator) < 0.0001) {
+                // Collinear beacons, fallback to weighted average
+                const totalWeight = 1/r1 + 1/r2 + 1/r3;
+                const x = (x1/r1 + x2/r2 + x3/r3) / totalWeight;
+                const y = (y1/r1 + y2/r2 + y3/r3) / totalWeight;
+                return { x, y };
+            }
+            
+            const x = (C * E - F * B) / denominator;
+            const y = (A * F - D * C) / denominator;
+            
+            // Clamp to map boundaries
+            const clampedX = Math.max(0, Math.min(MAP_CONFIG.realWidth, x));
+            const clampedY = Math.max(0, Math.min(MAP_CONFIG.realHeight, y));
+            
+            return { x: clampedX, y: clampedY };
+        }
+        
+        // Initialize map
+        function initializeMap() {
+            mapCanvas = document.getElementById('mapCanvas');
+            
+            // Add beacons to map
+            Object.entries(BEACON_POSITIONS).forEach(([mac, position], index) => {
+                const beacon = document.createElement('div');
+                beacon.className = `beacon ${position.class}`;
+                beacon.textContent = (index + 1).toString();
+                beacon.title = `${position.name}\n${mac}`;
+                beacon.id = `beacon-${mac}`;
+                
+                mapCanvas.appendChild(beacon);
+                updateBeaconPosition(mac);
+            });
+            
+            // Add user position indicator
+            const userIndicator = document.createElement('div');
+            userIndicator.className = 'user-position';
+            userIndicator.id = 'userPosition';
+            mapCanvas.appendChild(userIndicator);
+            
+            updateUserPosition();
+        }
+        
+        // Update beacon position on map
+        function updateBeaconPosition(mac) {
+            const beacon = document.getElementById(`beacon-${mac}`);
+            const position = BEACON_POSITIONS[mac];
+            
+            if (beacon && position) {
+                const pixelPos = realToPixel(position.x, position.y);
+                beacon.style.left = (pixelPos.x - 15) + 'px';
+                beacon.style.top = (pixelPos.y - 15) + 'px';
+            }
+        }
+        
+        // Update user position on map
+        function updateUserPosition() {
+            const userIndicator = document.getElementById('userPosition');
+            const pixelPos = realToPixel(userPosition.x, userPosition.y);
+            
+            userIndicator.style.left = pixelPos.x + 'px';
+            userIndicator.style.top = pixelPos.y + 'px';
+            
+            // Add to trail
+            addToTrail(pixelPos.x, pixelPos.y);
+            
+            // Update coordinates display
+            document.getElementById('coordinates').textContent = 
+                `X: ${userPosition.x.toFixed(1)}m, Y: ${userPosition.y.toFixed(1)}m`;
+        }
+        
+        // Add position to trail
+        function addToTrail(x, y) {
+            const trail = document.createElement('div');
+            trail.className = 'position-trail';
+            trail.style.left = (x - 2) + 'px';
+            trail.style.top = (y - 2) + 'px';
+            
+            mapCanvas.appendChild(trail);
+            positionTrail.push(trail);
+            
+            // Keep only last 20 trail points
+            if (positionTrail.length > 20) {
+                const oldTrail = positionTrail.shift();
+                if (oldTrail && oldTrail.parentNode) {
+                    oldTrail.parentNode.removeChild(oldTrail);
+                }
+            }
+        }
+        
+        // Clear position trail
+        function clearTrail() {
+            positionTrail.forEach(trail => {
+                if (trail && trail.parentNode) {
+                    trail.parentNode.removeChild(trail);
+                }
+            });
+            positionTrail = [];
+        }
+        
+        // Recalibrate positioning
+        function recalibrate() {
+            clearTrail();
+            userPosition = { x: 10, y: 7.5 }; // Reset to center
+            updateUserPosition();
+            document.getElementById('accuracyInfo').textContent = 'Position recalibrated to center';
+        }
+        
+        // Get RSSI class for styling
+        function getRSSIClass(rssi) {
+            if (rssi >= -40) return 'rssi-excellent';
+            if (rssi >= -55) return 'rssi-good';
+            if (rssi >= -70) return 'rssi-medium';
+            if (rssi >= -85) return 'rssi-poor';
+            return 'rssi-very-poor';
+        }
+        
+        // Update beacon data display
+        function updateBeaconData(beaconData) {
+            const container = document.getElementById('beaconData');
+            let html = '';
+            
+            Object.entries(BEACON_POSITIONS).forEach(([mac, position], index) => {
+                const data = beaconData[mac];
+                const infoClass = `beacon-info-${index + 1}`;
+                
+                if (data) {
+                    const distance = rssiToDistance(data.rssi);
+                    const rssiClass = getRSSIClass(data.rssi);
+                    
+                    html += `
+                        <div class="beacon-info ${infoClass}">
+                            <div class="beacon-mac">${position.name} (${mac.substring(0, 8)}...)</div>
+                            <div class="beacon-data">
+                                <div class="data-item">
+                                    <span class="data-label">RSSI:</span>
+                                    <span class="rssi-value ${rssiClass}">${data.rssi} dBm</span>
+                                </div>
+                                <div class="data-item">
+                                    <span class="data-label">Distance:</span>
+                                    <span class="data-value">${distance.toFixed(1)}m</span>
+                                </div>
+                                <div class="data-item">
+                                    <span class="data-label">Count:</span>
+                                    <span class="data-value">${data.count}</span>
+                                </div>
+                                <div class="data-item">
+                                    <span class="data-label">Avg RSSI:</span>
+                                    <span class="data-value">${data.avg_rssi} dBm</span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    html += `
+                        <div class="beacon-info ${infoClass}">
+                            <div class="beacon-mac">${position.name} (${mac.substring(0, 8)}...)</div>
+                            <div class="error-message">No signal detected</div>
+                        </div>
+                    `;
+                }
+            });
+            
+            container.innerHTML = html;
+        }
+        
+        // Calculate position using trilateration
+        function calculatePosition(beaconData) {
+            const beacons = [];
+            
+            Object.entries(BEACON_POSITIONS).forEach(([mac, position]) => {
+                const data = beaconData[mac];
+                if (data) {
+                    const distance = rssiToDistance(data.rssi);
+                    beacons.push({
+                        x: position.x,
+                        y: position.y,
+                        distance: distance,
+                        rssi: data.rssi
+                    });
+                }
+            });
+            
+            if (beacons.length >= 3) {
+                // Use the 3 strongest signals
+                beacons.sort((a, b) => b.rssi - a.rssi);
+                const newPosition = trilaterate(beacons[0], beacons[1], beacons[2]);
+                
+                // Smooth position change (weighted average)
+                const smoothingFactor = 0.3;
+                userPosition.x = userPosition.x * (1 - smoothingFactor) + newPosition.x * smoothingFactor;
+                userPosition.y = userPosition.y * (1 - smoothingFactor) + newPosition.y * smoothingFactor;
+                
+                updateUserPosition();
+                
+                const accuracy = Math.min(...beacons.slice(0, 3).map(b => b.distance));
+                document.getElementById('accuracyInfo').textContent = 
+                    `Estimated accuracy: ±${accuracy.toFixed(1)}m (using ${beacons.length} beacons)`;
+                    
+                return true;
+            } else {
+                document.getElementById('accuracyInfo').textContent = 
+                    `Need at least 3 beacon signals for positioning (found ${beacons.length})`;
+                return false;
+            }
+        }
+        
+        // Fetch positioning data
+        function updatePositioning() {
+            fetch('/api/positioning-data')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        console.error('Positioning error:', data.error);
+                        return;
+                    }
+                    
+                    updateBeaconData(data.beacon_data);
+                    calculatePosition(data.beacon_data);
+                })
+                .catch(error => {
+                    console.error('Error fetching positioning data:', error);
+                    document.getElementById('beaconData').innerHTML = 
+                        '<div class="error-message">❌ Connection error</div>';
+                });
+        }
+        
+        // Handle window resize
+        function handleResize() {
+            // Update beacon positions
+            Object.keys(BEACON_POSITIONS).forEach(mac => {
+                updateBeaconPosition(mac);
+            });
+            
+            // Update user position
+            updateUserPosition();
+        }
+        
+        // Initialize everything
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeMap();
+            updatePositioning();
+            
+            // Start auto-update
+            updateInterval = setInterval(updatePositioning, 2000);
+            
+            // Handle window resize
+            window.addEventListener('resize', handleResize);
+            
+            // Handle page visibility
+            document.addEventListener('visibilitychange', function() {
+                if (document.hidden) {
+                    clearInterval(updateInterval);
+                } else {
+                    updatePositioning();
+                    updateInterval = setInterval(updatePositioning, 2000);
+                }
+            });
+        });
+        
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', function() {
+            clearInterval(updateInterval);
+        });
+    </script>
+</body>
+</html>
