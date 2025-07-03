@@ -1,0 +1,17 @@
+[Unit]
+Description=BLE RSSI Data Collection Service
+After=network.target bluetooth.service
+Requires=bluetooth.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/ble-rssi-service
+ExecStart=/usr/bin/python3 /opt/ble-rssi-service/ble_rssi_service.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

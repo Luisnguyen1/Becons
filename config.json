@@ -1,0 +1,12 @@
+{
+    "ble": {
+        "mac_address": "C0:2C:ED:90:AD:A3",
+        "notify_handle": "0x0022"
+    },
+    "influxdb": {
+        "url": "http://localhost:8086",
+        "token": "your-influxdb-token-here",
+        "org": "your-org",
+        "bucket": "rssi_data"
+    }
+}
