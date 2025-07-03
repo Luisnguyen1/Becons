@@ -1,44 +1,57 @@
 # -*- coding: utf-8 -*-
 """
-Script để chạy cả BLE collector và Flask web server cùng lúc
+Script để chạy cả Multi-Beacon BLE collector và Flask web server cùng lúc
 """
 import threading
 import time
 from datetime import datetime
+from advanced_multi_collector import MultiBeaconCollector
 
-def run_ble_collector():
-    """Chạy BLE collector trong thread riêng"""
-    from easy import collect_ble_data
+# Global collector instance
+multi_collector = None
+
+def run_multi_beacon_collector():
+    """Chạy Multi-Beacon BLE collector trong thread riêng"""
+    global multi_collector
     try:
-        collect_ble_data()
+        multi_collector = MultiBeaconCollector()
+        print(f"[{datetime.now()}] Starting Multi-Beacon Collector...")
+        if multi_collector.start():
+            print(f"[{datetime.now()}] Multi-Beacon Collector started successfully")
+            # Keep the collector running
+            while multi_collector.running:
+                time.sleep(1)
+        else:
+            print(f"[{datetime.now()}] Failed to start Multi-Beacon Collector")
     except Exception as e:
-        print(f"[{datetime.now()}] BLE Collector error: {e}")
+        print(f"[{datetime.now()}] Multi-Beacon Collector error: {e}")
 
 def run_flask_app():
     """Chạy Flask app trong thread riêng"""
-    from flask_app import app
+    from flask_app_multi import app
     try:
         app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)
     except Exception as e:
         print(f"[{datetime.now()}] Flask App error: {e}")
 
 if __name__ == "__main__":
-    print("🚀 Starting BLE Beacons Monitor System...")
+    print("🚀 Starting Multi-Beacon BLE Monitor System...")
     print("="*60)
     
-    # Bắt đầu BLE collector thread
-    print("📡 Starting BLE Data Collector...")
-    ble_thread = threading.Thread(target=run_ble_collector, daemon=True)
+    # Bắt đầu Multi-Beacon collector thread
+    print("📡 Starting Multi-Beacon Data Collector...")
+    ble_thread = threading.Thread(target=run_multi_beacon_collector, daemon=True)
     ble_thread.start()
     
-    # Đợi 3 giây để BLE collector khởi động
-    time.sleep(3)
+    # Đợi 5 giây để Multi-Beacon collector khởi động
+    time.sleep(5)
     
     # Bắt đầu Flask web server
     print("🌐 Starting Flask Web Server...")
     print("📱 Web interface: http://localhost:5000")
-    print("📊 API Beacons: http://localhost:5000/api/beacons")
-    print("📈 API Latest: http://localhost:5000/api/latest")
+    print("📊 API Multi-Beacons: http://localhost:5000/api/multi-beacons")
+    print("📈 API Scanner Status: http://localhost:5000/api/scanner-status")
+    print("📋 API Latest Readings: http://localhost:5000/api/latest-readings")
     print("="*60)
     print("⏹️  Press Ctrl+C to stop both services")
     
@@ -46,4 +59,6 @@ if __name__ == "__main__":
         run_flask_app()
     except KeyboardInterrupt:
         print(f"\n[{datetime.now()}] Shutting down...")
+        if multi_collector:
+            multi_collector.stop()
         print("👋 Goodbye!")

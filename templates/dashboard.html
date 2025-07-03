@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Beacon BLE Monitor</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+        
+        .header h1 {
+            color: #4a5568;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+        
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+        
+        .btn-start {
+            background: #48bb78;
+            color: white;
+        }
+        
+        .btn-stop {
+            background: #f56565;
+            color: white;
+        }
+        
+        .btn-export {
+            background: #4299e1;
+            color: white;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-card {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+        
+        .stat-title {
+            font-size: 1.1em;
+            font-weight: bold;
+            color: #4a5568;
+            margin-bottom: 10px;
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 5px;
+        }
+        
+        .stat-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #2d3748;
+        }
+        
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        
+        .panel {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+        
+        .panel h3 {
+            color: #4a5568;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 10px;
+        }
+        
+        .beacon-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .beacon-item {
+            background: #f7fafc;
+            margin-bottom: 10px;
+            padding: 15px;
+            border-radius: 10px;
+            border-left: 4px solid #4299e1;
+        }
+        
+        .beacon-scanner {
+            font-weight: bold;
+            color: #2d3748;
+            margin-bottom: 8px;
+        }
+        
+        .detected-beacon {
+            background: #e6fffa;
+            margin: 5px 0;
+            padding: 10px;
+            border-radius: 8px;
+            border-left: 3px solid #38b2ac;
+        }
+        
+        .beacon-mac {
+            font-family: monospace;
+            font-weight: bold;
+            color: #2d3748;
+        }
+        
+        .beacon-rssi {
+            font-weight: bold;
+            margin-left: 10px;
+        }
+        
+        .rssi-good { color: #48bb78; }
+        .rssi-medium { color: #ed8936; }
+        .rssi-poor { color: #f56565; }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .status-connected { background: #48bb78; }
+        .status-connecting { background: #ed8936; }
+        .status-error { background: #f56565; }
+        .status-listening { background: #4299e1; }
+        
+        .readings-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        
+        .readings-table th,
+        .readings-table td {
+            padding: 8px 12px;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        
+        .readings-table th {
+            background: #f7fafc;
+            font-weight: bold;
+            color: #4a5568;
+        }
+        
+        .readings-table tr:hover {
+            background: #f7fafc;
+        }
+        
+        .auto-refresh {
+            text-align: center;
+            margin-top: 10px;
+            color: #718096;
+            font-size: 0.9em;
+        }
+        
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+            
+            .controls {
+                flex-direction: column;
+                align-items: center;
+            }
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #718096;
+        }
+        
+        .error {
+            background: #fed7d7;
+            color: #c53030;
+            padding: 10px;
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+        
+        .success {
+            background: #c6f6d5;
+            color: #2f855a;
+            padding: 10px;
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔍 Multi-Beacon BLE Monitor</h1>
+            <p>Real-time monitoring of multiple BLE beacons</p>
+            <div class="controls">
+                <button class="btn btn-start" onclick="startCollector()">▶️ Start Collector</button>
+                <button class="btn btn-stop" onclick="stopCollector()">⏹️ Stop Collector</button>
+                <button class="btn btn-export" onclick="exportData()">💾 Export Data</button>
+            </div>
+            <div id="message"></div>
+        </div>
+        
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-title">Active Scanners</div>
+                <div class="stat-value" id="total-scanners">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-title">Detected Beacons</div>
+                <div class="stat-value" id="total-beacons">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-title">Total Readings</div>
+                <div class="stat-value" id="total-readings">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-title">Uptime</div>
+                <div class="stat-value" id="uptime">0s</div>
+            </div>
+        </div>
+        
+        <div class="main-content">
+            <div class="panel">
+                <h3>📡 Scanner Status & Detected Beacons</h3>
+                <div id="beacon-data" class="beacon-list">
+                    <div class="loading">Loading...</div>
+                </div>
+            </div>
+            
+            <div class="panel">
+                <h3>📊 Recent Readings</h3>
+                <div id="recent-readings">
+                    <div class="loading">Loading...</div>
+                </div>
+                <div class="auto-refresh">Auto-refreshing every 2 seconds</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let updateInterval;
+        
+        function showMessage(message, type = 'success') {
+            const messageDiv = document.getElementById('message');
+            messageDiv.className = type;
+            messageDiv.innerHTML = message;
+            setTimeout(() => {
+                messageDiv.innerHTML = '';
+                messageDiv.className = '';
+            }, 3000);
+        }
+        
+        function formatUptime(seconds) {
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            const secs = Math.floor(seconds % 60);
+            
+            if (hours > 0) {
+                return `${hours}h ${minutes}m ${secs}s`;
+            } else if (minutes > 0) {
+                return `${minutes}m ${secs}s`;
+            } else {
+                return `${secs}s`;
+            }
+        }
+        
+        function getRSSIClass(rssi) {
+            if (rssi >= -50) return 'rssi-good';
+            if (rssi >= -70) return 'rssi-medium';
+            return 'rssi-poor';
+        }
+        
+        function getStatusClass(status) {
+            switch (status.toLowerCase()) {
+                case 'connected': return 'status-connected';
+                case 'listening': return 'status-connected';
+                case 'connecting': return 'status-connecting';
+                default: return 'status-error';
+            }
+        }
+        
+        function updateStats() {
+            fetch('/api/stats')
+                .then(response => response.json())
+                .then(data => {
+                    // Update summary stats
+                    document.getElementById('total-scanners').textContent = data.total_scanners;
+                    document.getElementById('total-beacons').textContent = data.total_detected_beacons;
+                    document.getElementById('total-readings').textContent = data.total_readings;
+                    document.getElementById('uptime').textContent = formatUptime(data.uptime_seconds);
+                    
+                    // Update beacon data
+                    const beaconDataDiv = document.getElementById('beacon-data');
+                    let html = '';
+                    
+                    // Connection status
+                    if (Object.keys(data.connection_status).length > 0) {
+                        html += '<h4>Connection Status:</h4>';
+                        for (const [mac, status] of Object.entries(data.connection_status)) {
+                            const statusClass = getStatusClass(status.status);
+                            html += `
+                                <div class="beacon-item">
+                                    <div class="beacon-scanner">
+                                        <span class="status-indicator ${statusClass}"></span>
+                                        ${mac} - ${status.status}
+                                    </div>
+                                    <small>${status.message}</small>
+                                </div>
+                            `;
+                        }
+                    }
+                    
+                    // Scanner data
+                    if (Object.keys(data.scanner_data).length > 0) {
+                        html += '<h4>Detected Beacons:</h4>';
+                        for (const [scannerMac, detectedBeacons] of Object.entries(data.scanner_data)) {
+                            html += `
+                                <div class="beacon-item">
+                                    <div class="beacon-scanner">📡 Scanner: ${scannerMac}</div>
+                            `;
+                            
+                            for (const [beaconMac, beaconData] of Object.entries(detectedBeacons)) {
+                                const rssiClass = getRSSIClass(beaconData.rssi);
+                                const lastSeen = new Date(beaconData.last_seen).toLocaleTimeString();
+                                
+                                html += `
+                                    <div class="detected-beacon">
+                                        <span class="beacon-mac">📍 ${beaconMac}</span>
+                                        <span class="beacon-rssi ${rssiClass}">${beaconData.rssi} dBm</span>
+                                        <br>
+                                        <small>
+                                            Avg: ${beaconData.avg_rssi} dBm | 
+                                            Range: ${beaconData.min_rssi} to ${beaconData.max_rssi} dBm | 
+                                            Count: ${beaconData.count} | 
+                                            Last: ${lastSeen}
+                                        </small>
+                                    </div>
+                                `;
+                            }
+                            
+                            html += '</div>';
+                        }
+                    }
+                    
+                    if (html === '') {
+                        html = '<div class="loading">No beacon data available</div>';
+                    }
+                    
+                    beaconDataDiv.innerHTML = html;
+                    
+                    // Update recent readings
+                    updateRecentReadings(data.latest_readings);
+                })
+                .catch(error => {
+                    console.error('Error fetching stats:', error);
+                    document.getElementById('beacon-data').innerHTML = 
+                        '<div class="error">Error loading data</div>';
+                });
+        }
+        
+        function updateRecentReadings(readings) {
+            const container = document.getElementById('recent-readings');
+            
+            if (readings.length === 0) {
+                container.innerHTML = '<div class="loading">No readings available</div>';
+                return;
+            }
+            
+            let html = `
+                <table class="readings-table">
+                    <thead>
+                        <tr>
+                            <th>Time</th>
+                            <th>Scanner</th>
+                            <th>Detected</th>
+                            <th>RSSI</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            readings.slice(-10).reverse().forEach(reading => {
+                const time = new Date(reading.timestamp).toLocaleTimeString();
+                const rssiClass = getRSSIClass(reading.rssi);
+                
+                html += `
+                    <tr>
+                        <td>${time}</td>
+                        <td><code>${reading.scanner_mac.substring(0, 8)}...</code></td>
+                        <td><code>${reading.detected_beacon.substring(0, 8)}...</code></td>
+                        <td class="${rssiClass}">${reading.rssi} dBm</td>
+                    </tr>
+                `;
+            });
+            
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        }
+        
+        function startCollector() {
+            fetch('/api/start')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showMessage('✅ Collector started successfully!', 'success');
+                    } else {
+                        showMessage('❌ ' + data.message, 'error');
+                    }
+                })
+                .catch(error => {
+                    showMessage('❌ Error starting collector: ' + error, 'error');
+                });
+        }
+        
+        function stopCollector() {
+            fetch('/api/stop')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showMessage('⏹️ Collector stopped', 'success');
+                    } else {
+                        showMessage('❌ ' + data.message, 'error');
+                    }
+                })
+                .catch(error => {
+                    showMessage('❌ Error stopping collector: ' + error, 'error');
+                });
+        }
+        
+        function exportData() {
+            fetch('/api/export')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showMessage('💾 Data exported to: ' + data.filename, 'success');
+                    } else {
+                        showMessage('❌ Export failed: ' + data.error, 'error');
+                    }
+                })
+                .catch(error => {
+                    showMessage('❌ Error exporting data: ' + error, 'error');
+                });
+        }
+        
+        // Start auto-update
+        updateStats();
+        updateInterval = setInterval(updateStats, 2000);
+        
+        // Handle page visibility change
+        document.addEventListener('visibilitychange', function() {
+            if (document.hidden) {
+                clearInterval(updateInterval);
+            } else {
+                updateStats();
+                updateInterval = setInterval(updateStats, 2000);
+            }
+        });
+    </script>
+</body>
+</html>

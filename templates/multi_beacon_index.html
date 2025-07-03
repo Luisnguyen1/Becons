@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Beacon BLE Monitor</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 25px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            backdrop-filter: blur(10px);
+        }
+        
+        .header h1 {
+            color: #4a5568;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .header p {
+            color: #718096;
+            font-size: 1.1em;
+        }
+        
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 0.9em;
+        }
+        
+        .btn-export {
+            background: linear-gradient(135deg, #4299e1, #3182ce);
+            color: white;
+        }
+        
+        .btn-stop {
+            background: linear-gradient(135deg, #f56565, #e53e3e);
+            color: white;
+        }
+        
+        .btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 25px;
+        }
+        
+        .stat-card {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            backdrop-filter: blur(10px);
+            transition: transform 0.3s ease;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .stat-title {
+            font-size: 1em;
+            font-weight: 600;
+            color: #718096;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .stat-value {
+            font-size: 2.5em;
+            font-weight: bold;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .main-content {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 25px;
+        }
+        
+        .panel {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+        }
+        
+        .panel h3 {
+            color: #4a5568;
+            margin-bottom: 20px;
+            font-size: 1.4em;
+            border-bottom: 3px solid #e2e8f0;
+            padding-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .scanner-container {
+            margin-bottom: 25px;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+        
+        .scanner-container:hover {
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+            transform: translateY(-2px);
+        }
+        
+        .scanner-header {
+            background: linear-gradient(135deg, #f7fafc, #edf2f7);
+            padding: 15px 20px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        
+        .scanner-mac {
+            font-weight: bold;
+            color: #2d3748;
+            font-size: 1.1em;
+            margin-bottom: 5px;
+            font-family: 'Courier New', monospace;
+        }
+        
+        .scanner-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.9em;
+        }
+        
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        
+        .status-connected { background: #48bb78; box-shadow: 0 0 10px rgba(72, 187, 120, 0.3); }
+        .status-connecting { background: #ed8936; box-shadow: 0 0 10px rgba(237, 137, 54, 0.3); }
+        .status-error { background: #f56565; box-shadow: 0 0 10px rgba(245, 101, 101, 0.3); }
+        .status-listening { background: #4299e1; box-shadow: 0 0 10px rgba(66, 153, 225, 0.3); }
+        
+        .detected-beacons {
+            padding: 0;
+        }
+        
+        .beacon-item {
+            padding: 15px 20px;
+            border-bottom: 1px solid #f1f5f9;
+            display: grid;
+            grid-template-columns: 1fr auto auto;
+            align-items: center;
+            gap: 15px;
+            transition: background 0.2s ease;
+        }
+        
+        .beacon-item:last-child {
+            border-bottom: none;
+        }
+        
+        .beacon-item:hover {
+            background: #f8f9fa;
+        }
+        
+        .beacon-mac {
+            font-family: 'Courier New', monospace;
+            font-weight: 600;
+            color: #2d3748;
+            font-size: 1em;
+        }
+        
+        .beacon-details {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+            font-size: 0.85em;
+            color: #718096;
+        }
+        
+        .beacon-rssi {
+            font-weight: bold;
+            font-size: 1.1em;
+            padding: 5px 12px;
+            border-radius: 20px;
+            color: white;
+            text-align: center;
+            min-width: 80px;
+        }
+        
+        .rssi-excellent { background: linear-gradient(135deg, #48bb78, #38a169); }
+        .rssi-good { background: linear-gradient(135deg, #68d391, #48bb78); }
+        .rssi-medium { background: linear-gradient(135deg, #f6ad55, #ed8936); }
+        .rssi-poor { background: linear-gradient(135deg, #fc8181, #f56565); }
+        .rssi-very-poor { background: linear-gradient(135deg, #e53e3e, #c53030); }
+        
+        .readings-panel {
+            max-height: 600px;
+            overflow-y: auto;
+        }
+        
+        .reading-item {
+            display: grid;
+            grid-template-columns: 60px 1fr 1fr 70px;
+            gap: 10px;
+            padding: 10px 0;
+            border-bottom: 1px solid #f1f5f9;
+            align-items: center;
+            font-size: 0.9em;
+        }
+        
+        .reading-item:last-child {
+            border-bottom: none;
+        }
+        
+        .reading-time {
+            font-family: 'Courier New', monospace;
+            color: #718096;
+            font-size: 0.85em;
+        }
+        
+        .reading-scanner, .reading-beacon {
+            font-family: 'Courier New', monospace;
+            color: #4a5568;
+            font-size: 0.8em;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .reading-rssi {
+            font-weight: bold;
+            text-align: right;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px 20px;
+            color: #718096;
+            font-style: italic;
+        }
+        
+        .error {
+            background: linear-gradient(135deg, #fed7d7, #feb2b2);
+            color: #c53030;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 15px 0;
+            text-align: center;
+        }
+        
+        .success {
+            background: linear-gradient(135deg, #c6f6d5, #9ae6b4);
+            color: #2f855a;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 15px 0;
+            text-align: center;
+        }
+        
+        .status-bar {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 12px 20px;
+            border-radius: 25px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+            font-size: 0.9em;
+            font-weight: 600;
+            z-index: 1000;
+        }
+        
+        .no-data {
+            text-align: center;
+            padding: 40px;
+            color: #718096;
+            background: #f8f9fa;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+        
+        @media (max-width: 1024px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+            
+            .stats-grid {
+                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .controls {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .beacon-item {
+                grid-template-columns: 1fr;
+                gap: 10px;
+                text-align: center;
+            }
+            
+            .reading-item {
+                grid-template-columns: 1fr;
+                gap: 5px;
+                text-align: center;
+            }
+        }
+        
+        .scroll-hint {
+            text-align: center;
+            color: #718096;
+            font-size: 0.8em;
+            margin-top: 10px;
+            font-style: italic;
+        }
+        
+        .update-info {
+            text-align: center;
+            color: #718096;
+            font-size: 0.85em;
+            margin-top: 15px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="status-bar" id="statusBar">🔄 Đang tải...</div>
+    
+    <div class="container">
+        <div class="header">
+            <h1>🔍 Multi-Beacon BLE Monitor</h1>
+            <p>Theo dõi real-time từ nhiều BLE beacons đồng thời</p>
+            <div class="controls">
+                <button class="btn btn-export" onclick="exportData()">💾 Export Data</button>
+                <button class="btn btn-stop" onclick="stopCollector()">⏹️ Stop Collector</button>
+            </div>
+            <div id="message"></div>
+        </div>
+        
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-title">Active Scanners</div>
+                <div class="stat-value" id="totalScanners">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-title">Detected Beacons</div>
+                <div class="stat-value" id="totalBeacons">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-title">Total Readings</div>
+                <div class="stat-value" id="totalReadings">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-title">Uptime</div>
+                <div class="stat-value" id="uptime">-</div>
+            </div>
+        </div>
+        
+        <div class="main-content">
+            <div class="panel">
+                <h3>📡 Scanners & Detected Beacons</h3>
+                <div id="scannersData">
+                    <div class="loading">Đang tải dữ liệu scanners...</div>
+                </div>
+            </div>
+            
+            <div class="panel">
+                <h3>📊 Recent Readings</h3>
+                <div class="readings-panel" id="recentReadings">
+                    <div class="loading">Đang tải readings...</div>
+                </div>
+                <div class="update-info">Auto-refresh every 2 seconds</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let updateInterval;
+        let errorCount = 0;
+        
+        function showMessage(message, type = 'success') {
+            const messageDiv = document.getElementById('message');
+            messageDiv.className = type;
+            messageDiv.innerHTML = message;
+            setTimeout(() => {
+                messageDiv.innerHTML = '';
+                messageDiv.className = '';
+            }, 4000);
+        }
+        
+        function formatUptime(seconds) {
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            const secs = Math.floor(seconds % 60);
+            
+            if (hours > 0) {
+                return `${hours}h ${minutes}m`;
+            } else if (minutes > 0) {
+                return `${minutes}m ${secs}s`;
+            } else {
+                return `${secs}s`;
+            }
+        }
+        
+        function getRSSIClass(rssi) {
+            if (rssi >= -40) return 'rssi-excellent';
+            if (rssi >= -55) return 'rssi-good';
+            if (rssi >= -70) return 'rssi-medium';
+            if (rssi >= -85) return 'rssi-poor';
+            return 'rssi-very-poor';
+        }
+        
+        function getStatusClass(status) {
+            switch (status.toLowerCase()) {
+                case 'connected':
+                case 'listening': return 'status-connected';
+                case 'connecting': return 'status-connecting';
+                default: return 'status-error';
+            }
+        }
+        
+        function formatRSSI(rssi) {
+            const className = getRSSIClass(rssi);
+            return `<span class="beacon-rssi ${className}">${rssi} dBm</span>`;
+        }
+        
+        function updateMultiBeacons() {
+            fetch('/api/multi-beacons')
+                .then(response => response.json())
+                .then(data => {
+                    errorCount = 0; // Reset error count on success
+                    
+                    if (data.error) {
+                        throw new Error(data.error);
+                    }
+                    
+                    // Update summary stats
+                    document.getElementById('totalScanners').textContent = data.total_scanners;
+                    document.getElementById('totalBeacons').textContent = data.total_detected_beacons;
+                    document.getElementById('totalReadings').textContent = data.total_readings.toLocaleString();
+                    document.getElementById('uptime').textContent = formatUptime(data.uptime_seconds);
+                    
+                    // Update scanners data
+                    const scannersDiv = document.getElementById('scannersData');
+                    let html = '';
+                    
+                    if (data.scanners.length === 0) {
+                        html = '<div class="no-data">📵 Không có scanner nào được kết nối</div>';
+                    } else {
+                        data.scanners.forEach(scanner => {
+                            const statusClass = getStatusClass(scanner.connection_status.status || 'unknown');
+                            
+                            html += `
+                                <div class="scanner-container">
+                                    <div class="scanner-header">
+                                        <div class="scanner-mac">📡 Scanner: ${scanner.scanner_mac}</div>
+                                        <div class="scanner-status">
+                                            <span class="status-indicator ${statusClass}"></span>
+                                            ${scanner.connection_status.status || 'Unknown'} - ${scanner.beacon_count} beacons detected
+                                        </div>
+                                    </div>
+                                    <div class="detected-beacons">
+                            `;
+                            
+                            if (scanner.detected_beacons.length === 0) {
+                                html += '<div class="no-data">Chưa phát hiện beacon nào</div>';
+                            } else {
+                                scanner.detected_beacons.forEach(beacon => {
+                                    html += `
+                                        <div class="beacon-item">
+                                            <div>
+                                                <div class="beacon-mac">📍 ${beacon.mac_address}</div>
+                                                <div class="beacon-details">
+                                                    <div>Count: ${beacon.count} | Avg: ${beacon.avg_rssi} dBm</div>
+                                                    <div>Range: ${beacon.min_rssi} to ${beacon.max_rssi} dBm</div>
+                                                    <div>Last: ${beacon.last_seen}</div>
+                                                </div>
+                                            </div>
+                                            <div class="beacon-rssi ${getRSSIClass(beacon.rssi)}">${beacon.rssi} dBm</div>
+                                        </div>
+                                    `;
+                                });
+                            }
+                            
+                            html += `
+                                    </div>
+                                </div>
+                            `;
+                        });
+                    }
+                    
+                    scannersDiv.innerHTML = html;
+                    
+                    // Update recent readings
+                    updateRecentReadings(data.latest_readings);
+                    
+                    // Update status bar
+                    document.getElementById('statusBar').innerHTML = '✅ Đang hoạt động';
+                    document.getElementById('statusBar').style.background = 'rgba(200, 255, 200, 0.95)';
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    errorCount++;
+                    
+                    document.getElementById('statusBar').innerHTML = `❌ Lỗi kết nối (${errorCount})`;
+                    document.getElementById('statusBar').style.background = 'rgba(255, 200, 200, 0.95)';
+                    
+                    if (errorCount === 1) {
+                        document.getElementById('scannersData').innerHTML = 
+                            '<div class="error">❌ Lỗi kết nối đến server</div>';
+                        document.getElementById('recentReadings').innerHTML = 
+                            '<div class="error">❌ Không thể tải readings</div>';
+                    }
+                });
+        }
+        
+        function updateRecentReadings(readings) {
+            const container = document.getElementById('recentReadings');
+            
+            if (!readings || readings.length === 0) {
+                container.innerHTML = '<div class="no-data">📊 Chưa có readings nào</div>';
+                return;
+            }
+            
+            let html = `
+                <div style="font-size: 0.85em; color: #718096; margin-bottom: 10px; display: grid; grid-template-columns: 60px 1fr 1fr 70px; gap: 10px; font-weight: bold;">
+                    <div>Time</div>
+                    <div>Scanner</div>
+                    <div>Detected</div>
+                    <div>RSSI</div>
+                </div>
+            `;
+            
+            readings.slice(-15).reverse().forEach(reading => {
+                const rssiClass = getRSSIClass(reading.rssi);
+                html += `
+                    <div class="reading-item">
+                        <div class="reading-time">${reading.timestamp}</div>
+                        <div class="reading-scanner">${reading.scanner_mac.substring(0, 8)}...</div>
+                        <div class="reading-beacon">${reading.detected_beacon.substring(0, 8)}...</div>
+                        <div class="reading-rssi ${rssiClass}">${reading.rssi} dBm</div>
+                    </div>
+                `;
+            });
+            
+            html += '<div class="scroll-hint">📈 Hiển thị 15 readings mới nhất</div>';
+            container.innerHTML = html;
+        }
+        
+        function exportData() {
+            fetch('/api/export')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showMessage('💾 Dữ liệu đã được export: ' + data.filename, 'success');
+                    } else {
+                        showMessage('❌ Export thất bại: ' + (data.error || 'Unknown error'), 'error');
+                    }
+                })
+                .catch(error => {
+                    showMessage('❌ Lỗi export: ' + error, 'error');
+                });
+        }
+        
+        function stopCollector() {
+            if (confirm('Bạn có chắc muốn dừng collector không?')) {
+                fetch('/api/collector-control/stop')
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            showMessage('⏹️ Collector đã được dừng', 'success');
+                            // Stop auto-update
+                            clearInterval(updateInterval);
+                        } else {
+                            showMessage('❌ Không thể dừng collector: ' + (data.error || 'Unknown error'), 'error');
+                        }
+                    })
+                    .catch(error => {
+                        showMessage('❌ Lỗi điều khiển collector: ' + error, 'error');
+                    });
+            }
+        }
+        
+        // Start auto-update
+        updateMultiBeacons();
+        updateInterval = setInterval(updateMultiBeacons, 2000);
+        
+        // Handle page visibility change
+        document.addEventListener('visibilitychange', function() {
+            if (document.hidden) {
+                clearInterval(updateInterval);
+            } else {
+                updateMultiBeacons();
+                updateInterval = setInterval(updateMultiBeacons, 2000);
+            }
+        });
+        
+        // Handle window beforeunload
+        window.addEventListener('beforeunload', function() {
+            clearInterval(updateInterval);
+        });
+    </script>
+</body>
+</html>
